@@ -1,0 +1,207 @@
+---
+title: "wup group analysis"
+author: "D"
+date: "20 12 2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(rlist)
+library(tidytext)
+```
+
+tidy data - 
+```{r}
+
+setwd("C:/Users/dam20/desktop/whatsup yazamut")
+
+#fix data
+IM <- read.csv("C:/Users/dam20/desktop/whatsup yazamut/WUG.csv")
+IM <- separate(IM, col = vv, into = c("date", "rest"), sep = "]")
+
+IM <- separate(IM, col = rest, into = c("sender", "content"), sep = ":")
+IM <- separate(IM, col = date, into = c("date", "time"), sep = ",")
+IM$date <- parse_date(IM$date, format = "[%d/%m/%Y " )
+
+
+
+#fill missing dates
+
+i <- 1
+for(i in 2:nrow(IM)) {
+   
+   if(is.na(IM[i,1]) == F) {lastdate = IM[i,1]}
+      
+   if(is.na(IM[i,1]) == T ) {IM[i,1] = lastdate}
+   i <- i+1
+}
+
+#save data for exel analysys
+IM %>% write.csv("WUgroup.csv")
+
+IM %>% view()
+```
+
+```{r}
+
+```
+
+
+
+
+ocuurances count
+```{r}
+#plot by times sent not normalized
+IM%>%group_by(sender)%>% count() %>% arrange(desc(n))  %>% 
+   filter(n>25,!is.na(sender))%>% head(14) %>%
+   ggplot(mapping = aes(x = reorder(sender, desc(n)), y = n, fill = sender))+ 
+   geom_col(show.legend = FALSE)+coord_flip()+ylab("Sender")+xlab("Number of texts")+
+   theme_classic(base_size = 20) 
+
+
+
+```
+
+-ocuurances count normalized
+```{r}
+#Normalize
+zz <- vector(length = nrow(IM)-1)
+
+i <- 1
+for(i in 2:nrow(IM)) {
+   
+   if(is.na(IM[i,3]) == T) {zz[i] <- FALSE}
+   else
+      
+      if (IM[i,3] == IM[i-1,3] & is.na(IM[i, 3] == IM[i - 1, 3]) == F) {zz[i] <- FALSE}
+   
+   else {
+      
+      if (IM[i,3] != IM[i-1,3] & is.na(IM[i, 3] != IM[i - 1, 3]) == F) {zz[i] <- TRUE}
+   }
+   i <- i+1
+}
+
+
+
+nor<- IM[zz,3]
+dnor <- data.frame(a = nor)
+
+dnor%>%group_by(sender)%>% count() %>% arrange(desc(n)) %>% 
+   filter(n>25,!is.na(sender))%>% head(14) %>%
+   ggplot(mapping = aes(x = reorder(sender, desc(n)), y = n, fill = sender))+ 
+   geom_col(show.legend = FALSE)+coord_flip()+ylab("Sender")+xlab("Number of text")+
+   theme_classic(base_size = 20)
+
+
+```
+
+count hhhh to see who is the funniest
+```{r}
+# count hhhhhhhh
+
+CM <- IM
+CM <- mutate(CM, funny = str_count(content, pattern = "ח"))
+
+CM <- CM %>% mutate(num = 1:nrow(CM), nextnum = num+1)
+
+CM <- CM %>% left_join(CM, by = c(num = "nextnum")) %>% select(1:8,11,12)
+CM %>% arrange(desc(funny.x)) %>% view()
+
+
+
+```
+
+most used words by person or day
+```{r}
+#most used words and by person
+consplit <- IM
+consplit <- IM %>% select(sender,content,date)
+
+
+consplit <- consplit %>% 
+   mutate(content = strsplit(as.character(content), " ")) %>% 
+   unnest(content) %>%
+   group_by(sender,content) %>% count() %>% arrange(desc(n,sender))
+
+
+```
+
+
+-most spoken teacher
+```{r}
+
+consplit %>% filter(content %in% c("יוסי", "אבנר","מאיה","ערן","עפרית","ארי","חגית","אסנת", "ישראל")) %>%
+   ggplot(mapping = aes(x = content, y = n))+geom_col()
+
+```
+
+
+sender count by day for regression
+```{r}
+consplit <- IM
+consplit <- IM %>% select(sender,content,date)
+
+consplit <- consplit %>% 
+   mutate(content = strsplit(as.character(content), " ")) %>% 
+   unnest(content) %>%
+   group_by(date, sender) %>% count()
+
+consplit <- consplit %>% spread(key = sender, value = n) 
+str(consplit)
+
+consplit %>% write.csv("wordcount - person by day.csv")
+
+getwd()
+
+
+
+```
+
+sender count by content for clustering
+```{r}
+consplit <- IM
+consplit <- IM %>% select(sender,content,date)
+
+consplit <- consplit %>% 
+   mutate(content = strsplit(as.character(content), " ")) %>% 
+   unnest(content) %>%
+   group_by(sender, content) %>% count()
+
+consplit <- consplit %>% spread(key = sender, value = n)
+
+consplit %>% write.csv("textcluster.csv")
+```
+
+sender count by content for clustering fixed ignoring ocuurences
+```{r}
+
+consplit <- IM
+consplit <- IM %>% select(sender,content,date)
+
+consplit <- consplit %>% 
+   mutate(content = strsplit(as.character(content), " ")) %>% 
+   unnest(content) %>%
+   group_by(sender, content) %>% count() %>% arrange(desc(n)) 
+
+consplit <- consplit %>% group_by(sender) %>% top_n(n = 65) 
+
+
+
+consplit <- consplit %>% spread(key = content, value = n)
+
+consplit %>% write.csv("textcount - person by text.csv")
+
+consplit %>% write.csv("abucluster.csv")
+
+getwd()
+```
+
+
+```{r}
+
+
+```
+
